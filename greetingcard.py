@@ -119,17 +119,28 @@ def create_share_image(title_lines, recipient, body_lines, footer_lines):
     border_color = (255, 215, 0) # Gold
     draw.rectangle([20, 20, width-20, height-20], outline=border_color, width=10)
     
-    # Fonts - Try to load Chinese compatible fonts on Mac
+    # Fonts
     try:
-        font_path = "/System/Library/Fonts/STHeiti Medium.ttc"
-        if not os.path.exists(font_path):
-             font_path = "/System/Library/Fonts/PingFang.ttc"
-        
-        title_font = ImageFont.truetype(font_path, 60)
-        body_font = ImageFont.truetype(font_path, 40)
-        footer_font = ImageFont.truetype(font_path, 30)
-    except Exception:
-        # Fallback if fonts specific paths fail (though unlikely on Mac)
+        # Prioritize customized/downloaded calligraphy font
+        if os.path.exists("wangxizhi.ttf"):
+            font_path = "wangxizhi.ttf"
+            # Calligraphy fonts are often stylized and might need slight size adjustment, 
+            # but we stick to defaults first.
+            title_font = ImageFont.truetype(font_path, 70) # slightly larger for title
+            body_font = ImageFont.truetype(font_path, 45)
+            footer_font = ImageFont.truetype(font_path, 35)
+        else:
+            # Fallback to Mac system fonts
+            font_path = "/System/Library/Fonts/STHeiti Medium.ttc"
+            if not os.path.exists(font_path):
+                 font_path = "/System/Library/Fonts/PingFang.ttc"
+            
+            title_font = ImageFont.truetype(font_path, 60)
+            body_font = ImageFont.truetype(font_path, 40)
+            footer_font = ImageFont.truetype(font_path, 30)
+    except Exception as e:
+        print(f"Font loading error: {e}")
+        # Fallback default
         title_font = ImageFont.load_default()
         body_font = ImageFont.load_default()
         footer_font = ImageFont.load_default()
@@ -349,17 +360,24 @@ def main():
                 "愿您的事业如骏马奔腾",
                 "生活如春风得意！"
             ]
-            img_footer = [" "] # Leave content empty so logo has space
+            img_footer = [" ", " "] # Leave content empty so logo has space, spacer for aesthetic
             
             image_buffer = create_share_image(img_title, full_name_display, img_body, img_footer)
             
+            # Store in session state to persist download button
+            st.session_state['generated_image'] = image_buffer
+            st.session_state['generated_image_name'] = f"马年祝福_{recipient_name}.png"
+            
             st.sidebar.success("图片已生成！")
-            st.sidebar.download_button(
-                label="📥 点击下载贺卡图片",
-                data=image_buffer,
-                file_name=f"马年祝福_{recipient_name}.png",
-                mime="image/png"
-            )
+            
+    # Show download button independent of generation button
+    if 'generated_image' in st.session_state:
+        st.sidebar.download_button(
+            label="📥 点击下载贺卡图片",
+            data=st.session_state['generated_image'],
+            file_name=st.session_state.get('generated_image_name', 'greeting_card.png'),
+            mime="image/png"
+        )
 
 if __name__ == "__main__":
     main()
