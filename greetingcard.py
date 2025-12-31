@@ -3,6 +3,7 @@ import time
 from PIL import Image, ImageDraw, ImageFont
 import io
 import os
+import urllib.parse
 
 # Set page configuration
 st.set_page_config(
@@ -124,9 +125,8 @@ def create_share_image(title_lines, recipient, body_lines, footer_lines):
         # Prioritize customized/downloaded calligraphy font
         if os.path.exists("wangxizhi.ttf"):
             font_path = "wangxizhi.ttf"
-            # Calligraphy fonts are often stylized and might need slight size adjustment, 
-            # but we stick to defaults first.
-            title_font = ImageFont.truetype(font_path, 70) # slightly larger for title
+            # Calligraphy fonts are often stylized and might need slight size adjustment
+            title_font = ImageFont.truetype(font_path, 70) 
             body_font = ImageFont.truetype(font_path, 45)
             footer_font = ImageFont.truetype(font_path, 35)
         else:
@@ -148,8 +148,6 @@ def create_share_image(title_lines, recipient, body_lines, footer_lines):
     # Draw Title
     y_pos = 100
     for line in title_lines:
-        # Centering logic relies on getbbox or textlength, doing simple approximation or using anchors
-        # anchor="mm" aligns middle-middle
         draw.text((width/2, y_pos), line, font=title_font, fill=(220, 20, 60), anchor="mm")
         y_pos += 80
     
@@ -200,15 +198,35 @@ def create_share_image(title_lines, recipient, body_lines, footer_lines):
     return buf
 
 def main():
+    # --- 1. Query Parameters Parsing (For Generate Personal Link) ---
+    # st.query_params is the new standard in recent Streamlit versions (old was experimental_get_query_params)
+    # It returns a dictionary-like object.
+    
+    # Defaults
+    default_recipient = "亲爱的朋友"
+    default_relation = "朋友/同事"
+    
+    # Check if we have params in URL
+    if "name" in st.query_params:
+        default_recipient = st.query_params["name"]
+        
+    if "relation" in st.query_params:
+        rel_param = st.query_params["relation"]
+        valid_relations = ["朋友/同事", "长辈/亲戚", "领导/老师", "伴侣/爱人", "晚辈/孩子", "客户/合作伙伴"]
+        if rel_param in valid_relations:
+            default_relation = rel_param
+
     # --- Sidebar Configuration ---
     st.sidebar.markdown("---")
     st.sidebar.header("✍️ 定制祝福内容")
     
-    recipient_name = st.sidebar.text_input("📝 对方称呼 (如: 奶奶, 张总)", value="亲爱的朋友")
+    # Use the values from URL as default for the widgets
+    recipient_name = st.sidebar.text_input("📝 对方称呼 (如: 奶奶, 张总)", value=default_recipient)
     
     relation_type = st.sidebar.selectbox(
         "👥 关系类型",
-        options=["朋友/同事", "长辈/亲戚", "领导/老师", "伴侣/爱人", "晚辈/孩子", "客户/合作伙伴"]
+        options=["朋友/同事", "长辈/亲戚", "领导/老师", "伴侣/爱人", "晚辈/孩子", "客户/合作伙伴"],
+        index=["朋友/同事", "长辈/亲戚", "领导/老师", "伴侣/爱人", "晚辈/孩子", "客户/合作伙伴"].index(default_relation)
     )
     
     event_focus = st.sidebar.multiselect(
@@ -329,6 +347,28 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.header("📤 转发/分享")
     
+    # Link Generation Logic (New)
+    st.sidebar.subheader("🔗 专属链接分享")
+    
+    # Get base URL (This is a bit tricky in Streamlit, usually users know their hosted URL)
+    # We will try to construct a relative path or ask user to copy full URL
+    
+    # Construct query string
+    params = {
+        "name": recipient_name,
+        "relation": relation_type
+    }
+    query_string = urllib.parse.urlencode(params)
+    
+    st.sidebar.info("您可以复制下方链接发送给朋友，打开后将直接显示您定制的名字：")
+    
+    # Since we can't easily detect the full domain in basic Streamlit securely without request headers
+    # We provide the suffix mostly.
+    st.sidebar.code(f"/?{query_string}", language="text")
+    st.sidebar.caption("👆 请将此后缀添加到您的网站域名后发送 (例如: https://myapp.streamlit.app/?name=...)")
+
+    st.sidebar.markdown("---")
+    
     share_text = f"""🎉 2026 丙午马年快乐！🐴
 
 {full_name_display}
@@ -346,7 +386,7 @@ def main():
     
     st.sidebar.info("💡 **提示**: 您可以使用下方的按钮生成图片，保存后直接发送给微信好友！")
 
-    # Generate Image Logic
+    # Generate Image Logic (No changes needed here)
     if st.sidebar.button("🖼️ 生成分享图片"):
         with st.spinner("正在绘制贺卡..."):
             # Prepare separate lines for image
